@@ -1,6 +1,6 @@
 ---
 title: "STAT/MATH 495: Problem Set 06"
-author: "WRITE YOUR NAME HERE"
+author: "Kiryu Kawahata"
 date: "2017-10-17"
 output:
   html_document:
@@ -22,6 +22,7 @@ set.seed(76)
 library(tidyverse)
 library(broom)
 library(knitr)
+library(gridExtra)
 ```
 
 
@@ -50,6 +51,7 @@ f <- function(x) {
   x^2
 }
 sigma <- 0.3
+
 ```
 
 This is the target point we'll be trying to predict: $(0.95, f(0.95)) = (0.95, 0.95^2) = (0.95, 0.9025)$, Thus, the test set is just `x=0.95`
@@ -90,12 +92,45 @@ $n=100$ to keep plots uncrowded. Here we boost to $n=500$
 ```{r}
 n <- 500
 n_sample <- 10000
+
+
 ```
 
 
 # Computation
 
 ```{r}
+baseplot <- ggplot(data=NULL) +
+  geom_vline(xintercept = x0, linetype="dashed") +
+  coord_cartesian(xlim=c(0, 1), ylim=c(-0.75, 1.5))
+options(expressions = 10000)
+
+plot_df2 <- baseplot + labs(title = "10,000 sampled splines with 2 degrees of freedom")
+plot_df99 <- baseplot + labs(title = "10,000 sampled splines with 99 degrees of freedom")
+for (i in 1:n_sample) {
+  Problem_sample <- generate_sample(f, n, sigma)
+  
+  Spline_df2 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df = 2) %>%
+    broom::augment()
+   plot_df2 <- plot_df2 + geom_point(data=Spline_df2, aes(x=x, y=y), alpha=0.1) + geom_line(data=Spline_df2, aes(x=x, y=.fitted), col="blue", alpha=0.1, size=1, )
+  
+   Spline_df99 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df =99) %>%
+    broom::augment()
+  
+  
+   plot_df99 <- plot_df99 + geom_point(data=Spline_df99, aes(x=x, y=y), alpha=0.1) + geom_line(data=Spline_df99, aes(x=x, y=.fitted), col="blue", alpha=0.1, size=1)
+
+}
+
+plot_df2 <- plot_df2 +
+  geom_point(data=data_frame(x=x0, y=f(x0)), aes(x=x,y=y), col="red", size=3)
+plot_df99 <- plot_df99 +
+  geom_point(data=data_frame(x=x0, y=f(x0)), aes(x=x,y=y), col="red", size=3)
+
+Plots_problem <- grid.arrange(plot_df2, plot_df99, nrow=2)
+
+
+
 
 ```
 
@@ -113,9 +148,24 @@ output tables comparing:
 |----:|------------:|-----:|-----------:|-----:|
 |     X|           X  |     X |      X |         X |
 
-where `sum = bias_squared + var + irreducible`. You can created cleanly formatted tables like the one above by piping a data frame into `knitr::kable(digits=4)`.
+where `sum = bias_squared + var + irreducible`. You can create cleanly formatted tables like the one above by piping a data frame into `knitr::kable(digits=4)`.
+
+```{r}
 
 
+Spline_df2 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df =2) %>%
+    broom::augment()
+
+
+df2_table <- Spline_df2 %>% 
+  mutate(MSE = sum(Spline_df2$.resid)^2) %>% 
+  mutate(bias_squared = (mean(Spline_df2$fitted) - Spline_df2$y^2)) %>%
+  sample_n(1) %>% 
+  select(MSE, bias_squared) 
+  
+
+
+```
 
 
 # Analysis
@@ -133,4 +183,4 @@ $x$ in this example, and not just for $$\mbox{MSE}\left[\widehat{f}(x_0)\right]
 
 1.
 1.
-1.
+1. I would choose the 

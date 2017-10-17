@@ -58,7 +58,9 @@ This is the target point we'll be trying to predict: $(0.95, f(0.95)) = (0.95, 0
 
 ```{r}
 x0 <- 0.95
-test_set <- data_frame(x=x0)
+test_set <- data_frame(x=x0) %>% 
+  mutate(y = "") 
+  
 ```
 
 This function generates a random sample of size $n$; think of this as a "get new
@@ -100,35 +102,31 @@ n_sample <- 10000
 # Computation
 
 ```{r}
-baseplot <- ggplot(data=NULL) +
-  geom_vline(xintercept = x0, linetype="dashed") +
-  coord_cartesian(xlim=c(0, 1), ylim=c(-0.75, 1.5))
-options(expressions = 10000)
 
-plot_df2 <- baseplot + labs(title = "10,000 sampled splines with 2 degrees of freedom")
-plot_df99 <- baseplot + labs(title = "10,000 sampled splines with 99 degrees of freedom")
 for (i in 1:n_sample) {
   Problem_sample <- generate_sample(f, n, sigma)
   
-  Spline_df2 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df = 2) %>%
+  
+  Spline_df2 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df = 2)
+  
+  tidy_spline_df2 <- Spline_df2 %>%   
     broom::augment()
-   plot_df2 <- plot_df2 + geom_point(data=Spline_df2, aes(x=x, y=y), alpha=0.1) + geom_line(data=Spline_df2, aes(x=x, y=.fitted), col="blue", alpha=0.1, size=1, )
+
+   Spline_df99 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df =99)
+    tidy_spline_df99 <- Spline_df99 %>% 
+     broom::augment()
   
-   Spline_df99 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df =99) %>%
-    broom::augment()
-  
-  
-   plot_df99 <- plot_df99 + geom_point(data=Spline_df99, aes(x=x, y=y), alpha=0.1) + geom_line(data=Spline_df99, aes(x=x, y=.fitted), col="blue", alpha=0.1, size=1)
+    Different_y_df2 <- predict(Spline_df2, x = test_set$x) %>% 
+  as_tibble() 
+    
+   }
+#Infinite recursion error when attempting to produce plots
 
-}
+Predict_df2 <- predict(Spline_df2, x = test_set$x) %>% 
+  as_tibble() 
 
-plot_df2 <- plot_df2 +
-  geom_point(data=data_frame(x=x0, y=f(x0)), aes(x=x,y=y), col="red", size=3)
-plot_df99 <- plot_df99 +
-  geom_point(data=data_frame(x=x0, y=f(x0)), aes(x=x,y=y), col="red", size=3)
-
-Plots_problem <- grid.arrange(plot_df2, plot_df99, nrow=2)
-
+Predict_df99 <- predict(Spline_df99, x = test_set$x) %>% 
+  as_tibble()
 
 
 
@@ -153,18 +151,28 @@ where `sum = bias_squared + var + irreducible`. You can create cleanly formatted
 ```{r}
 
 
-Spline_df2 <- smooth.spline(x = Problem_sample$x, y = Problem_sample$y, df =2) %>%
-    broom::augment()
-
-
-df2_table <- Spline_df2 %>% 
-  mutate(MSE = sum(Spline_df2$.resid)^2) %>% 
-  mutate(bias_squared = (mean(Spline_df2$fitted) - Spline_df2$y^2)) %>%
-  sample_n(1) %>% 
-  select(MSE, bias_squared) 
+table_df2 <- test_set %>%
+  mutate(bias = Predict_df2$y - f(x)) %>%
+  mutate(bias_squared = bias^2) %>% 
+  mutate(var = var(tidy_spline_df2$.resid - f(x))) %>%
+  mutate(MSE = (sum(Predict_df2$y - f(x)/nrow(Spline_df2)))^2) %>% 
+  mutate(irreducible = sigma^2) %>% 
+  mutate(sum = bias_squared+ var+ irreducible) %>% 
+  select(MSE, bias_squared, var, irreducible, sum) %>% 
+  knitr::kable(digits = 4)
   
-
-
+table_df99 <- test_set %>%
+  mutate(bias = Predict_df99$y - f(x)) %>%
+  mutate(bias_squared = bias^2) %>% 
+  mutate(var = var(tidy_spline_df99$y - f(x))) %>%
+  mutate(MSE = (sum(Predict_df99$y - f(x)/nrow(Spline_df99)))^2) %>% 
+  mutate(irreducible = sigma^2) %>% 
+  mutate(sum = bias_squared+ var+ irreducible) %>% 
+  select(MSE, bias_squared, var, irreducible, sum) %>% 
+  knitr::kable(digits = 4)
+  
+table_df2
+table_df99
 ```
 
 
@@ -181,6 +189,8 @@ $x$ in this example, and not just for $$\mbox{MSE}\left[\widehat{f}(x_0)\right]
 
 **Answers**:
 
-1.
-1.
-1. I would choose the 
+1.One check is to see if the sum of the variance and bias squared is equal to the MSE. I'm having trouble accomplishing this as of writing and will try to fix it or get help.
+
+1. Create a dataset with a range of all values for x, then fit the models however many times using all of these points
+
+1. I don't believe my work here is correct so I can't decide. If I were to go with the results here I would go with the model with 99 degrees of freedom. According to this table the bias squared value is lower as expected, which would mean higher precision being associated with the model. Additionally the variance values are roughly the same between both models, however I'm not sure if this is truly the case. 
